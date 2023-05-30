@@ -182,7 +182,7 @@ export class Authenticator {
     const username = decoded['cognito:username'] as string;
     const usernameBase = `${this._cookieBase}.${username}`;
     const parts = domain.split('.');
-    const baseDomain = parts.length > 1 ? `${parts[parts.length - 2]}.${parts[parts.length - 1]}` : domain;
+    const baseDomain = parts.length > 1 ? `.${parts[parts.length - 2]}.${parts[parts.length - 1]}` : domain;
     const cookieAttributes: CookieAttributes = {
       domain: this._allowCookieSubdomains ? baseDomain : domain,
       expires: new Date(Date.now() + this._cookieExpirationDays * 864e+5),
