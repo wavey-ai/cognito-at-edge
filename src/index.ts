@@ -26,6 +26,7 @@ interface AuthenticatorParams {
   sameSite?: SameSite;
   logLevel?: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   cookiePath?: string;
+  apiVersion: string;
 }
 
 interface Tokens {
@@ -46,6 +47,7 @@ export class Authenticator {
   _sameSite?: SameSite;
   _cookieBase: string;
   _cookiePath?: string;
+  _apiVersion?: string;
   _logger;
   _jwtVerifier;
 
@@ -64,6 +66,7 @@ export class Authenticator {
     this._sameSite = params.sameSite;
     this._cookieBase = `CognitoIdentityServiceProvider.${params.userPoolAppId}`;
     this._cookiePath = params.cookiePath;
+    this._apiVersion = params.apiVersion;
     this._logger = pino({
       level: params.logLevel || "silent", // Default to silent
       base: null, //Remove pid, hostname and name logging as not usefull for Lambda
@@ -111,6 +114,9 @@ export class Authenticator {
     }
     if ("cookiePath" in params && typeof params.cookiePath !== "string") {
       throw new Error("Expected params.cookiePath to be a string");
+    }
+    if ("apiVersion" in params && typeof params.apiVersion !== "string") {
+      throw new Error("Expected params.apiVersion to be a string");
     }
   }
 
@@ -281,6 +287,12 @@ export class Authenticator {
     const response: CloudFrontRequestResult = {
       status: "302",
       headers: {
+        "api-version": [
+          {
+            key: "api-version",
+            value: this._apiVersion,
+          },
+        ],
         location: [
           {
             key: "Location",
@@ -389,6 +401,12 @@ export class Authenticator {
     return {
       status: "302",
       headers: {
+        "api-version": [
+          {
+            key: "api-version",
+            value: this._apiVersion,
+          },
+        ],
         location: [
           {
             key: "Location",
@@ -454,6 +472,12 @@ export class Authenticator {
             headers: {
               "www-authenticate": [
                 { key: "WWW-Authenticate", value: "Bearer" },
+              ],
+              "api-version": [
+                {
+                  key: "api-version",
+                  value: this._apiVersion,
+                },
               ],
             },
           };
