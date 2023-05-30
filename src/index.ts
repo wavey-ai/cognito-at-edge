@@ -430,8 +430,13 @@ export class Authenticator {
     const redirectURI = `https://${cfDomain}`;
 
     try {
-      const authHeader = request.headers['authorization'] ? request.headers['authorization'][0].value : undefined;
-      const tokens = this._getTokensFromCookie(request.headers.cookie, authHeader);
+      const authHeader = request.headers["authorization"]
+        ? request.headers["authorization"][0].value
+        : undefined;
+      const tokens = this._getTokensFromCookie(
+        request.headers.cookie,
+        authHeader
+      );
       this._logger.debug({ msg: "Verifying token...", tokens });
       try {
         const user = await this._jwtVerifier.verify(tokens.idToken);
@@ -442,6 +447,20 @@ export class Authenticator {
         });
         return request;
       } catch (err) {
+        if (authHeader) {
+          const response: CloudFrontRequestResult = {
+            status: "401",
+            statusDescription: `Unauthorized: ${err.message}`,
+            headers: {
+              "www-authenticate": [
+                { key: "WWW-Authenticate", value: "Bearer" },
+              ],
+            },
+          };
+
+          return response;
+        }
+
         if (tokens.refreshToken) {
           this._logger.debug({
             msg: "Verifying idToken failed, verifying refresh token instead...",
