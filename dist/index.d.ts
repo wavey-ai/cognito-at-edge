@@ -1,5 +1,5 @@
-import { CloudFrontRequest, CloudFrontRequestEvent, CloudFrontRequestResult } from 'aws-lambda';
-import { SameSite } from './util/cookie';
+import { CloudFrontRequest, CloudFrontRequestEvent, CloudFrontRequestResult } from "aws-lambda";
+import { SameSite } from "./util/cookie";
 interface AuthenticatorParams {
     region: string;
     userPoolId: string;
@@ -10,8 +10,9 @@ interface AuthenticatorParams {
     allowCookieSubdomains?: boolean;
     httpOnly?: boolean;
     sameSite?: SameSite;
-    logLevel?: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+    logLevel?: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
     cookiePath?: string;
+    apiVersion: string;
 }
 interface Tokens {
     accessToken?: string;
@@ -30,6 +31,7 @@ export declare class Authenticator {
     _sameSite?: SameSite;
     _cookieBase: string;
     _cookiePath?: string;
+    _apiVersion?: string;
     _logger: any;
     _jwtVerifier: any;
     constructor(params: AuthenticatorParams);
@@ -69,7 +71,7 @@ export declare class Authenticator {
     _getTokensFromCookie(cookieHeaders: Array<{
         key?: string | undefined;
         value: string;
-    }> | undefined): Tokens;
+    }>, authHeader: string | undefined): Tokens;
     /**
      * Get redirect to cognito userpool response
      * @param  {CloudFrontRequest}  request The original request
