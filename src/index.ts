@@ -430,7 +430,8 @@ export class Authenticator {
     const redirectURI = `https://${cfDomain}`;
 
     try {
-      const tokens = this._getTokensFromCookie(request.headers.cookie);
+      const authHeader = request.headers['authorization'] ? request.headers['authorization'][0].value : undefined;
+      const tokens = this._getTokensFromCookie(request.headers.cookie, authHeader);
       this._logger.debug({ msg: "Verifying token...", tokens });
       try {
         const user = await this._jwtVerifier.verify(tokens.idToken);
