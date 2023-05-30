@@ -12,7 +12,7 @@ interface AuthenticatorParams {
   userPoolAppSecret?: string;
   userPoolDomain: string;
   cookieExpirationDays?: number;
-  disableCookieDomain?: boolean;
+  allowCookieSubdomains?: boolean;
   httpOnly?: boolean;
   sameSite?: SameSite;
   logLevel?: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
@@ -32,7 +32,7 @@ export class Authenticator {
   _userPoolAppSecret: string;
   _userPoolDomain: string;
   _cookieExpirationDays: number;
-  _disableCookieDomain: boolean;
+  _allowCookieSubdomains: boolean;
   _httpOnly: boolean;
   _sameSite?: SameSite;
   _cookieBase: string;
@@ -48,7 +48,7 @@ export class Authenticator {
     this._userPoolAppSecret = params.userPoolAppSecret;
     this._userPoolDomain = params.userPoolDomain;
     this._cookieExpirationDays = params.cookieExpirationDays || 365;
-    this._disableCookieDomain = ('disableCookieDomain' in params && params.disableCookieDomain === true);
+    this._allowCookieSubdomains = ('allowCookieSubdomains' in params && params.allowCookieSubdomains === true);
     this._httpOnly = ('httpOnly' in params && params.httpOnly === true);
     this._sameSite = params.sameSite;
     this._cookieBase = `CognitoIdentityServiceProvider.${params.userPoolAppId}`;
@@ -81,8 +81,8 @@ export class Authenticator {
     if (params.cookieExpirationDays && typeof params.cookieExpirationDays !== 'number') {
       throw new Error('Expected params.cookieExpirationDays to be a number');
     }
-    if ('disableCookieDomain' in params && typeof params.disableCookieDomain !== 'boolean') {
-      throw new Error('Expected params.disableCookieDomain to be a boolean');
+    if ('allowCookieSubdomains' in params && typeof params.allowCookieSubdomains !== 'boolean') {
+      throw new Error('Expected params.allowCookieSubdomains to be a boolean');
     }
     if ('httpOnly' in params && typeof params.httpOnly !== 'boolean') {
       throw new Error('Expected params.httpOnly to be a boolean');
@@ -181,8 +181,10 @@ export class Authenticator {
     const decoded = await this._jwtVerifier.verify(tokens.idToken);
     const username = decoded['cognito:username'] as string;
     const usernameBase = `${this._cookieBase}.${username}`;
+    const parts = domain.split('.');
+    const baseDomain = parts.length > 1 ? `${parts[parts.length - 2]}.${parts[parts.length - 1]}` : domain;
     const cookieAttributes: CookieAttributes = {
-      domain: this._disableCookieDomain ? undefined : domain,
+      domain: this._allowCookieSubdomains ? baseDomain : domain,
       expires: new Date(Date.now() + this._cookieExpirationDays * 864e+5),
       secure: true,
       httpOnly: this._httpOnly,
@@ -334,4 +336,3 @@ export class Authenticator {
     }
   }
 }
-
