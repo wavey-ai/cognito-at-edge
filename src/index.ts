@@ -1,9 +1,18 @@
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { CloudFrontRequest, CloudFrontRequestEvent, CloudFrontRequestResult } from 'aws-lambda';
-import axios from 'axios';
-import pino from 'pino';
-import { parse, stringify } from 'querystring';
-import { CookieAttributes, Cookies, SameSite, SAME_SITE_VALUES } from './util/cookie';
+import { CognitoJwtVerifier } from "aws-jwt-verify";
+import {
+  CloudFrontRequest,
+  CloudFrontRequestEvent,
+  CloudFrontRequestResult,
+} from "aws-lambda";
+import axios from "axios";
+import pino from "pino";
+import { parse, stringify } from "querystring";
+import {
+  CookieAttributes,
+  Cookies,
+  SameSite,
+  SAME_SITE_VALUES,
+} from "./util/cookie";
 
 interface AuthenticatorParams {
   region: string;
@@ -15,7 +24,7 @@ interface AuthenticatorParams {
   allowCookieSubdomains?: boolean;
   httpOnly?: boolean;
   sameSite?: SameSite;
-  logLevel?: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+  logLevel?: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   cookiePath?: string;
 }
 
@@ -48,19 +57,21 @@ export class Authenticator {
     this._userPoolAppSecret = params.userPoolAppSecret;
     this._userPoolDomain = params.userPoolDomain;
     this._cookieExpirationDays = params.cookieExpirationDays || 365;
-    this._allowCookieSubdomains = ('allowCookieSubdomains' in params && params.allowCookieSubdomains === true);
-    this._httpOnly = ('httpOnly' in params && params.httpOnly === true);
+    this._allowCookieSubdomains =
+      "allowCookieSubdomains" in params &&
+      params.allowCookieSubdomains === true;
+    this._httpOnly = "httpOnly" in params && params.httpOnly === true;
     this._sameSite = params.sameSite;
     this._cookieBase = `CognitoIdentityServiceProvider.${params.userPoolAppId}`;
     this._cookiePath = params.cookiePath;
     this._logger = pino({
-      level: params.logLevel || 'silent', // Default to silent
+      level: params.logLevel || "silent", // Default to silent
       base: null, //Remove pid, hostname and name logging as not usefull for Lambda
     });
     this._jwtVerifier = CognitoJwtVerifier.create({
       userPoolId: params.userPoolId,
       clientId: params.userPoolAppId,
-      tokenUse: 'id',
+      tokenUse: "id",
     });
   }
 
@@ -70,28 +81,36 @@ export class Authenticator {
    * @return {void} throw an exception if params are incorects.
    */
   _verifyParams(params) {
-    if (typeof params !== 'object') {
-      throw new Error('Expected params to be an object');
+    if (typeof params !== "object") {
+      throw new Error("Expected params to be an object");
     }
-    [ 'region', 'userPoolId', 'userPoolAppId', 'userPoolDomain' ].forEach(param => {
-      if (typeof params[param] !== 'string') {
-        throw new Error(`Expected params.${param} to be a string`);
+    ["region", "userPoolId", "userPoolAppId", "userPoolDomain"].forEach(
+      (param) => {
+        if (typeof params[param] !== "string") {
+          throw new Error(`Expected params.${param} to be a string`);
+        }
       }
-    });
-    if (params.cookieExpirationDays && typeof params.cookieExpirationDays !== 'number') {
-      throw new Error('Expected params.cookieExpirationDays to be a number');
+    );
+    if (
+      params.cookieExpirationDays &&
+      typeof params.cookieExpirationDays !== "number"
+    ) {
+      throw new Error("Expected params.cookieExpirationDays to be a number");
     }
-    if ('allowCookieSubdomains' in params && typeof params.allowCookieSubdomains !== 'boolean') {
-      throw new Error('Expected params.allowCookieSubdomains to be a boolean');
+    if (
+      "allowCookieSubdomains" in params &&
+      typeof params.allowCookieSubdomains !== "boolean"
+    ) {
+      throw new Error("Expected params.allowCookieSubdomains to be a boolean");
     }
-    if ('httpOnly' in params && typeof params.httpOnly !== 'boolean') {
-      throw new Error('Expected params.httpOnly to be a boolean');
+    if ("httpOnly" in params && typeof params.httpOnly !== "boolean") {
+      throw new Error("Expected params.httpOnly to be a boolean");
     }
-    if ('sameSite' in params && !SAME_SITE_VALUES.includes(params.sameSite)) {
-      throw new Error('Expected params.sameSite to be a Strict || Lax || None');
+    if ("sameSite" in params && !SAME_SITE_VALUES.includes(params.sameSite)) {
+      throw new Error("Expected params.sameSite to be a Strict || Lax || None");
     }
-    if ('cookiePath' in params && typeof params.cookiePath !== 'string') {
-      throw new Error('Expected params.cookiePath to be a string');
+    if ("cookiePath" in params && typeof params.cookiePath !== "string") {
+      throw new Error("Expected params.cookiePath to be a string");
     }
   }
 
@@ -102,33 +121,46 @@ export class Authenticator {
    * @return {Promise} Authenticated user tokens.
    */
   _fetchTokensFromCode(redirectURI, code): Promise<Tokens> {
-    const authorization = this._userPoolAppSecret && Buffer.from(`${this._userPoolAppId}:${this._userPoolAppSecret}`).toString('base64');
+    const authorization =
+      this._userPoolAppSecret &&
+      Buffer.from(`${this._userPoolAppId}:${this._userPoolAppSecret}`).toString(
+        "base64"
+      );
     const request = {
       url: `https://${this._userPoolDomain}/oauth2/token`,
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        ...(authorization && {'Authorization': `Basic ${authorization}`}),
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(authorization && { Authorization: `Basic ${authorization}` }),
       },
       data: stringify({
-        client_id:	this._userPoolAppId,
-        code:	code,
-        grant_type:	'authorization_code',
-        redirect_uri:	redirectURI,
+        client_id: this._userPoolAppId,
+        code: code,
+        grant_type: "authorization_code",
+        redirect_uri: redirectURI,
       }),
     } as const;
-    this._logger.debug({ msg: 'Fetching tokens from grant code...', request, code });
-    return axios.request(request)
-      .then(resp => {
-        this._logger.debug({ msg: 'Fetched tokens', tokens: resp.data });
+    this._logger.debug({
+      msg: "Fetching tokens from grant code...",
+      request,
+      code,
+    });
+    return axios
+      .request(request)
+      .then((resp) => {
+        this._logger.debug({ msg: "Fetched tokens", tokens: resp.data });
         return {
           idToken: resp.data.id_token,
           accessToken: resp.data.access_token,
           refreshToken: resp.data.refresh_token,
         };
       })
-      .catch(err => {
-        this._logger.error({ msg: 'Unable to fetch tokens from grant code', request, code });
+      .catch((err) => {
+        this._logger.error({
+          msg: "Unable to fetch tokens from grant code",
+          request,
+          code,
+        });
         throw err;
       });
   }
@@ -139,33 +171,49 @@ export class Authenticator {
    * @param  {String} refreshToken Refresh token.
    * @return {Promise<Tokens>} Refreshed user tokens.
    */
-  _fetchTokensFromRefreshToken(redirectURI: string, refreshToken: string): Promise<Tokens> {
-    const authorization = this._userPoolAppSecret && Buffer.from(`${this._userPoolAppId}:${this._userPoolAppSecret}`).toString('base64');
+  _fetchTokensFromRefreshToken(
+    redirectURI: string,
+    refreshToken: string
+  ): Promise<Tokens> {
+    const authorization =
+      this._userPoolAppSecret &&
+      Buffer.from(`${this._userPoolAppId}:${this._userPoolAppSecret}`).toString(
+        "base64"
+      );
     const request = {
       url: `https://${this._userPoolDomain}/oauth2/token`,
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        ...(authorization && {'Authorization': `Basic ${authorization}`}),
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(authorization && { Authorization: `Basic ${authorization}` }),
       },
       data: stringify({
         client_id: this._userPoolAppId,
         refresh_token: refreshToken,
-        grant_type: 'refresh_token',
+        grant_type: "refresh_token",
         redirect_uri: redirectURI,
       }),
     } as const;
-    this._logger.debug({ msg: 'Fetching tokens from refreshToken...', request, refreshToken });
-    return axios.request(request)
-      .then(resp => {
-        this._logger.debug({ msg: 'Fetched tokens', tokens: resp.data });
+    this._logger.debug({
+      msg: "Fetching tokens from refreshToken...",
+      request,
+      refreshToken,
+    });
+    return axios
+      .request(request)
+      .then((resp) => {
+        this._logger.debug({ msg: "Fetched tokens", tokens: resp.data });
         return {
           idToken: resp.data.id_token,
           accessToken: resp.data.access_token,
         };
       })
-      .catch(err => {
-        this._logger.error({ msg: 'Unable to fetch tokens from refreshToken', request, refreshToken });
+      .catch((err) => {
+        this._logger.error({
+          msg: "Unable to fetch tokens from refreshToken",
+          request,
+          refreshToken,
+        });
         throw err;
       });
   }
@@ -177,48 +225,85 @@ export class Authenticator {
    * @param  {String} location Path to redirection.
    * @return Lambda@Edge response.
    */
-  async _getRedirectResponse(tokens: Tokens, domain: string, location: string): Promise<CloudFrontRequestResult> {
+  async _getRedirectResponse(
+    tokens: Tokens,
+    domain: string,
+    location: string
+  ): Promise<CloudFrontRequestResult> {
     const decoded = await this._jwtVerifier.verify(tokens.idToken);
-    const username = decoded['cognito:username'] as string;
+    const username = decoded["cognito:username"] as string;
     const usernameBase = `${this._cookieBase}.${username}`;
-    const parts = domain.split('.');
-    const baseDomain = parts.length > 1 ? `.${parts[parts.length - 2]}.${parts[parts.length - 1]}` : domain;
+    const parts = domain.split(".");
+    const baseDomain =
+      parts.length > 1
+        ? `.${parts[parts.length - 2]}.${parts[parts.length - 1]}`
+        : domain;
     const cookieAttributes: CookieAttributes = {
       domain: this._allowCookieSubdomains ? baseDomain : domain,
-      expires: new Date(Date.now() + this._cookieExpirationDays * 864e+5),
+      expires: new Date(Date.now() + this._cookieExpirationDays * 864e5),
       secure: true,
       httpOnly: this._httpOnly,
       sameSite: this._sameSite,
       path: this._cookiePath,
     };
     const cookies = [
-      Cookies.serialize(`${usernameBase}.accessToken`, tokens.accessToken, cookieAttributes),
-      Cookies.serialize(`${usernameBase}.idToken`, tokens.idToken, cookieAttributes),
-      ...(tokens.refreshToken ? [Cookies.serialize(`${usernameBase}.refreshToken`, tokens.refreshToken, cookieAttributes)] : []),
-      Cookies.serialize(`${usernameBase}.tokenScopesString`, 'phone email profile openid aws.cognito.signin.user.admin', cookieAttributes),
-      Cookies.serialize(`${this._cookieBase}.LastAuthUser`, username, cookieAttributes),
+      Cookies.serialize(
+        `${usernameBase}.accessToken`,
+        tokens.accessToken,
+        cookieAttributes
+      ),
+      Cookies.serialize(
+        `${usernameBase}.idToken`,
+        tokens.idToken,
+        cookieAttributes
+      ),
+      ...(tokens.refreshToken
+        ? [
+            Cookies.serialize(
+              `${usernameBase}.refreshToken`,
+              tokens.refreshToken,
+              cookieAttributes
+            ),
+          ]
+        : []),
+      Cookies.serialize(
+        `${usernameBase}.tokenScopesString`,
+        "phone email profile openid aws.cognito.signin.user.admin",
+        cookieAttributes
+      ),
+      Cookies.serialize(
+        `${this._cookieBase}.LastAuthUser`,
+        username,
+        cookieAttributes
+      ),
     ];
 
     const response: CloudFrontRequestResult = {
-      status: '302' ,
+      status: "302",
       headers: {
-        'location': [{
-          key: 'Location',
-          value: location,
-        }],
-        'cache-control': [{
-          key: 'Cache-Control',
-          value: 'no-cache, no-store, max-age=0, must-revalidate',
-        }],
-        'pragma': [{
-          key: 'Pragma',
-          value: 'no-cache',
-        }],
-        'set-cookie': cookies.map(c => ({ key: 'Set-Cookie', value: c })),
+        location: [
+          {
+            key: "Location",
+            value: location,
+          },
+        ],
+        "cache-control": [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, max-age=0, must-revalidate",
+          },
+        ],
+        pragma: [
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+        ],
+        "set-cookie": cookies.map((c) => ({ key: "Set-Cookie", value: c })),
       },
     };
 
-    this._logger.debug({ msg: 'Generated set-cookie response', response });
+    this._logger.debug({ msg: "Generated set-cookie response", response });
 
     return response;
   }
@@ -228,36 +313,58 @@ export class Authenticator {
    * @param  {Array}  cookieHeaders 'Cookie' request headers.
    * @return {Tokens} Extracted id token or access token. Null if not found.
    */
-  _getTokensFromCookie(cookieHeaders: Array<{ key?: string | undefined, value: string }> | undefined): Tokens {
-    if (!cookieHeaders) {
-      this._logger.debug("Cookies weren't present in the request");
-      throw new Error("Cookies weren't present in the request");
-    }
+  _getTokensFromCookie(
+    cookieHeaders: Array<{ key?: string | undefined; value: string }>,
+    authHeader: string | undefined
+  ): Tokens {
+    let tokens: Tokens = {};
 
-    this._logger.debug({ msg: 'Extracting authentication token from request cookie', cookieHeaders });
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      this._logger.debug(
+        "Extracting authentication token from Authorization header"
+      );
+      tokens.idToken = authHeader.slice(7); // Remove 'Bearer ' prefix
+    } else if (cookieHeaders) {
+      this._logger.debug({
+        msg: "Extracting authentication token from request cookie",
+        cookieHeaders,
+      });
 
-    const cookies = cookieHeaders.flatMap(h => Cookies.parse(h.value));
+      const cookies = cookieHeaders.flatMap((h) => Cookies.parse(h.value));
 
-    const tokenCookieNamePrefix = `${this._cookieBase}.`;
-    const idTokenCookieNamePostfix = '.idToken';
-    const refreshTokenCookieNamePostfix = '.refreshToken';
+      const tokenCookieNamePrefix = `${this._cookieBase}.`;
+      const idTokenCookieNamePostfix = ".idToken";
+      const refreshTokenCookieNamePostfix = ".refreshToken";
 
-    const tokens: Tokens = {};
-    for (const {name, value} of cookies){
-      if (name.startsWith(tokenCookieNamePrefix) && name.endsWith(idTokenCookieNamePostfix)) {
-        tokens.idToken = value;
+      for (const { name, value } of cookies) {
+        if (
+          name.startsWith(tokenCookieNamePrefix) &&
+          name.endsWith(idTokenCookieNamePostfix)
+        ) {
+          tokens.idToken = value;
+        }
+        if (
+          name.startsWith(tokenCookieNamePrefix) &&
+          name.endsWith(refreshTokenCookieNamePostfix)
+        ) {
+          tokens.refreshToken = value;
+        }
       }
-      if (name.startsWith(tokenCookieNamePrefix) && name.endsWith(refreshTokenCookieNamePostfix)) {
-        tokens.refreshToken = value;
-      }
+    } else {
+      this._logger.debug(
+        "Neither Authorization header nor cookies were present in the request"
+      );
+      throw new Error(
+        "Neither Authorization header nor cookies were present in the request"
+      );
     }
 
-    if (!tokens.idToken && !tokens.refreshToken) {
-      this._logger.debug('Neither idToken, nor refreshToken was present in request cookies');
-      throw new Error('Neither idToken, nor refreshToken was present in request cookies');
+    if (!tokens.idToken) {
+      this._logger.debug("idToken not present in request headers or cookies");
+      throw new Error("idToken not present in request headers or cookies");
     }
 
-    this._logger.debug({ msg: 'Found tokens in cookie', tokens });
+    this._logger.debug({ msg: "Found tokens", tokens });
     return tokens;
   }
 
@@ -267,28 +374,39 @@ export class Authenticator {
    * @param  {string}  redirectURI Redirection URI.
    * @return {CloudFrontRequestResult} Redirect response.
    */
-  _getRedirectToCognitoUserPoolResponse(request: CloudFrontRequest, redirectURI: string): CloudFrontRequestResult {
+  _getRedirectToCognitoUserPoolResponse(
+    request: CloudFrontRequest,
+    redirectURI: string
+  ): CloudFrontRequestResult {
     let redirectPath = request.uri;
-    if (request.querystring && request.querystring !== '') {
-      redirectPath += encodeURIComponent('?' + request.querystring);
+    if (request.querystring && request.querystring !== "") {
+      redirectPath += encodeURIComponent("?" + request.querystring);
     }
     const userPoolUrl = `https://${this._userPoolDomain}/authorize?redirect_uri=${redirectURI}&response_type=code&client_id=${this._userPoolAppId}&state=${redirectPath}`;
-    this._logger.debug(`Redirecting user to Cognito User Pool URL ${userPoolUrl}`);
+    this._logger.debug(
+      `Redirecting user to Cognito User Pool URL ${userPoolUrl}`
+    );
     return {
-      status: '302',
+      status: "302",
       headers: {
-        'location': [{
-          key: 'Location',
-          value: userPoolUrl,
-        }],
-        'cache-control': [{
-          key: 'Cache-Control',
-          value: 'no-cache, no-store, max-age=0, must-revalidate',
-        }],
-        'pragma': [{
-          key: 'Pragma',
-          value: 'no-cache',
-        }],
+        location: [
+          {
+            key: "Location",
+            value: userPoolUrl,
+          },
+        ],
+        "cache-control": [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, max-age=0, must-revalidate",
+          },
+        ],
+        pragma: [
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+        ],
       },
     };
   }
@@ -301,8 +419,10 @@ export class Authenticator {
    * @param  {Object}  event Lambda@Edge event.
    * @return {Promise} CloudFront response.
    */
-  async handle(event: CloudFrontRequestEvent): Promise<CloudFrontRequestResult> {
-    this._logger.debug({ msg: 'Handling Lambda@Edge event', event });
+  async handle(
+    event: CloudFrontRequestEvent
+  ): Promise<CloudFrontRequestResult> {
+    this._logger.debug({ msg: "Handling Lambda@Edge event", event });
 
     const { request } = event.Records[0].cf;
     const requestParams = parse(request.querystring);
@@ -311,16 +431,28 @@ export class Authenticator {
 
     try {
       const tokens = this._getTokensFromCookie(request.headers.cookie);
-      this._logger.debug({ msg: 'Verifying token...', tokens });
+      this._logger.debug({ msg: "Verifying token...", tokens });
       try {
         const user = await this._jwtVerifier.verify(tokens.idToken);
-        this._logger.info({ msg: 'Forwarding request', path: request.uri, user });
+        this._logger.info({
+          msg: "Forwarding request",
+          path: request.uri,
+          user,
+        });
         return request;
       } catch (err) {
         if (tokens.refreshToken) {
-          this._logger.debug({ msg: 'Verifying idToken failed, verifying refresh token instead...', tokens, err });
-          return await this._fetchTokensFromRefreshToken(redirectURI, tokens.refreshToken)
-            .then(tokens => this._getRedirectResponse(tokens, cfDomain, request.uri));
+          this._logger.debug({
+            msg: "Verifying idToken failed, verifying refresh token instead...",
+            tokens,
+            err,
+          });
+          return await this._fetchTokensFromRefreshToken(
+            redirectURI,
+            tokens.refreshToken
+          ).then((tokens) =>
+            this._getRedirectResponse(tokens, cfDomain, request.uri)
+          );
         } else {
           throw err;
         }
@@ -328,8 +460,14 @@ export class Authenticator {
     } catch (err) {
       this._logger.debug("User isn't authenticated: %s", err);
       if (requestParams.code) {
-        return this._fetchTokensFromCode(redirectURI, requestParams.code)
-          .then(tokens => this._getRedirectResponse(tokens, cfDomain, requestParams.state as string));
+        return this._fetchTokensFromCode(redirectURI, requestParams.code).then(
+          (tokens) =>
+            this._getRedirectResponse(
+              tokens,
+              cfDomain,
+              requestParams.state as string
+            )
+        );
       } else {
         return this._getRedirectToCognitoUserPoolResponse(request, redirectURI);
       }
