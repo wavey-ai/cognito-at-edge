@@ -96,9 +96,9 @@ class Authenticator {
             method: "POST",
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
-                ...(authorization && { Authorization: `Basic ${authorization}` }),
             },
             data: (0, querystring_1.stringify)({
+                client_secret: this._userPoolAppSecret,
                 client_id: this._userPoolAppId,
                 code: code,
                 grant_type: "authorization_code",
